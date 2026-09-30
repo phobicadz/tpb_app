@@ -87,7 +87,7 @@ def search():
 def qb_add_api():
     """Proxy endpoint to add torrent to qBittorrent."""
     data = request.get_json()
-    base_url = data.get("url", "http://localhost:8080")
+    base_url = data.get("url", "http://desktop.mancave:8080")
     username = data.get("username", "admin")
     password = data.get("password", "weasel")
     magnet = data.get("magnet", "")

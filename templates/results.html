@@ -59,7 +59,7 @@
             <div class="batch-actions">
                 <button type="button" onclick="downloadSelected()" class="btn btn-primary">⬇ Download Selected</button>
                 <button type="button" onclick="sendSelectedToQBittorrent()" class="btn btn-utorrent">📡 Send to qBittorrent</button>
-                <input type="text" id="qbittorrent-url" placeholder="http://localhost:8080" class="utorrent-input">
+                <input type="text" id="qbittorrent-url" value="http://desktop.mancave:8080" class="utorrent-input">
                 <input type="text" id="qbittorrent-user" placeholder="Username" class="utorrent-input" style="width:120px;">
                 <input type="password" id="qbittorrent-pass" placeholder="Password" class="utorrent-input" style="width:120px;">
             </div>
@@ -103,7 +103,7 @@
         }
 
         async function sendToQBittorrent(magnet) {
-            const base = document.getElementById('qbittorrent-url').value || 'http://localhost:8080';
+            const base = document.getElementById('qbittorrent-url').value || 'http://desktop.mancave:8080';
             const user = document.getElementById('qbittorrent-user').value || 'admin';
             const pass = document.getElementById('qbittorrent-pass').value || 'weasel';
             try {

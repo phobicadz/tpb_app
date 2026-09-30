@@ -1,0 +1,12 @@
+services:
+  tpb_app:
+    build: .
+    container_name: tpb_app
+    ports:
+      - "5000:5000"
+    networks:
+      - newasgard
+
+networks:
+  newasgard:
+    external: true
