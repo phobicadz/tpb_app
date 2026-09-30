@@ -3,20 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search Results - {{ query }}</title>
+    <title>Results - {{ query }}</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>🏴‍☠️ Search Results</h1>
+    <div class="hero">
+        <h1>🏴‍☠️ Pirate Bay Search</h1>
         <form action="/search" method="GET">
             <div class="search-box">
-                <input type="text" name="q" value="{{ query }}" placeholder="Search..." required>
+                <input type="text" name="q" value="{{ query }}" placeholder="Search for torrents..." required>
                 <button type="submit">Search</button>
             </div>
         </form>
+    </div>
 
-        <p>Results for: <strong>{{ query }}</strong> ({{ count }} found)</p>
+    <div class="container">
+        <p class="results-info">Results for <strong>{{ query }}</strong> — {{ count }} found</p>
 
         {% if results %}
         <form id="selection-form">
@@ -38,7 +40,7 @@
                         <td>
                             <a href="{{ t.url }}" target="_blank">{{ t.name }}</a>
                             {% if t.magnet %}
-                            <br><small class="magnet-link"><a href="{{ t.magnet }}">magnet link</a></small>
+                            <br><small class="magnet-link"><a href="{{ t.magnet }}">magnet</a></small>
                             {% endif %}
                         </td>
                         <td>{{ t.size }}</td>
@@ -70,11 +72,6 @@
     <script>
         function toggleAll(checked) {
             document.querySelectorAll('.torrent-check').forEach(cb => cb.checked = checked);
-        }
-
-        function getSelected() {
-            return Array.from(document.querySelectorAll('.torrent-check:checked'))
-                .map(cb => cb.value);
         }
 
         function downloadSelected() {
@@ -110,35 +107,19 @@
                 const resp = await fetch('/api/qbittorrent/add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        url: base,
-                        username: user,
-                        password: pass,
-                        magnet: magnet
-                    })
+                    body: JSON.stringify({ url: base, username: user, password: pass, magnet: magnet })
                 });
                 const data = await resp.json();
-                if (data.success) {
-                    console.log('Sent to qBittorrent');
-                } else {
-                    console.log('qBittorrent error:', data.error);
-                }
+                console.log(data.success ? 'Sent' : 'Error:', data.error);
             } catch (e) {
-                console.error('Error sending to qBittorrent:', e);
+                console.error('Error:', e);
             }
         }
 
         async function sendSelectedToQBittorrent() {
-            const magnets = getSelectedMagnets();
-            if (magnets.length === 0) {
-                alert('Select at least one torrent');
-                return;
-            }
-
-            for (const magnet of magnets) {
+            for (const magnet of getSelectedMagnets()) {
                 await sendToQBittorrent(magnet);
             }
-            console.log(`Sent ${magnets.length} torrents to qBittorrent`);
         }
     </script>
 </body>
