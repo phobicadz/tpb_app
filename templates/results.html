@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results - {{ query }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🏴‍☠️ Search Results</h1>
+        <form action="/search" method="GET">
+            <div class="search-box">
+                <input type="text" name="q" value="{{ query }}" placeholder="Search..." required>
+                <button type="submit">Search</button>
+            </div>
+        </form>
+
+        <p>Results for: <strong>{{ query }}</strong> ({{ count }} found)</p>
+
+        {% if results %}
+        <form id="selection-form">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all" onchange="toggleAll(this.checked)"></th>
+                        <th>Name</th>
+                        <th>Size</th>
+                        <th>Seeders</th>
+                        <th>Leechers</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in results %}
+                    <tr>
+                        <td><input type="checkbox" name="selected" value="{{ t.id }}" class="torrent-check"></td>
+                        <td>
+                            <a href="{{ t.url }}" target="_blank">{{ t.name }}</a>
+                            {% if t.magnet %}
+                            <br><small class="magnet-link"><a href="{{ t.magnet }}">magnet link</a></small>
+                            {% endif %}
+                        </td>
+                        <td>{{ t.size }}</td>
+                        <td class="{{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
+                        <td>{{ t.leechers }}</td>
+                        <td class="actions">
+                            {% if t.magnet %}
+                            <a href="{{ t.magnet }}" class="btn btn-download" title="Download via magnet">⬇</a>
+                            <a href="javascript:sendToQBittorrent('{{ t.magnet }}')" class="btn btn-utorrent" title="Send to qBittorrent">📡</a>
+                            {% endif %}
+                            <a href="{{ t.url }}" target="_blank" class="btn" title="View details">👁</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="batch-actions">
+                <button type="button" onclick="downloadSelected()" class="btn btn-primary">⬇ Download Selected</button>
+                <button type="button" onclick="sendSelectedToQBittorrent()" class="btn btn-utorrent">📡 Send to qBittorrent</button>
+                <input type="text" id="qbittorrent-url" placeholder="http://localhost:8080" class="utorrent-input">
+                <input type="text" id="qbittorrent-user" placeholder="Username" class="utorrent-input" style="width:120px;">
+                <input type="password" id="qbittorrent-pass" placeholder="Password" class="utorrent-input" style="width:120px;">
+            </div>
+        </form>
+        {% endif %}
+    </div>
+
+    <script>
+        function toggleAll(checked) {
+            document.querySelectorAll('.torrent-check').forEach(cb => cb.checked = checked);
+        }
+
+        function getSelected() {
+            return Array.from(document.querySelectorAll('.torrent-check:checked'))
+                .map(cb => cb.value);
+        }
+
+        function downloadSelected() {
+            const magnets = getSelectedMagnets();
+            if (magnets.length === 0) {
+                alert('Select at least one torrent');
+                return;
+            }
+            magnets.forEach(magnet => {
+                const a = document.createElement('a');
+                a.href = magnet;
+                a.click();
+            });
+        }
+
+        function getSelectedMagnets() {
+            const magnets = [];
+            document.querySelectorAll('.torrent-check:checked').forEach(cb => {
+                const row = cb.closest('tr');
+                const downloadBtn = row.querySelector('.btn-download');
+                if (downloadBtn) {
+                    magnets.push(downloadBtn.href);
+                }
+            });
+            return magnets;
+        }
+
+        async function sendToQBittorrent(magnet) {
+            const base = document.getElementById('qbittorrent-url').value || 'http://localhost:8080';
+            const user = document.getElementById('qbittorrent-user').value || 'admin';
+            const pass = document.getElementById('qbittorrent-pass').value || 'weasel';
+            try {
+                const resp = await fetch('/api/qbittorrent/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: base,
+                        username: user,
+                        password: pass,
+                        magnet: magnet
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    console.log('Sent to qBittorrent');
+                } else {
+                    console.log('qBittorrent error:', data.error);
+                }
+            } catch (e) {
+                console.error('Error sending to qBittorrent:', e);
+            }
+        }
+
+        async function sendSelectedToQBittorrent() {
+            const magnets = getSelectedMagnets();
+            if (magnets.length === 0) {
+                alert('Select at least one torrent');
+                return;
+            }
+
+            for (const magnet of magnets) {
+                await sendToQBittorrent(magnet);
+            }
+            console.log(`Sent ${magnets.length} torrents to qBittorrent`);
+        }
+    </script>
+</body>
+</html>
