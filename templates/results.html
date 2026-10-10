@@ -7,120 +7,238 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="hero">
-        <h1>🏴‍☠️ Pirate Bay Search</h1>
-        <form action="/search" method="GET">
-            <div class="search-box">
-                <input type="text" name="q" value="{{ query }}" placeholder="Search for torrents..." required>
-                <button type="submit">Search</button>
-            </div>
+    <header class="topbar">
+        <a class="brand" href="/">🏴‍☠️ TPB Search</a>
+        <form action="/search" method="GET" class="search-form">
+            <input type="text" name="q" value="{{ query }}" placeholder="Search for torrents..." required autofocus>
+            <select name="cat" class="cat-select" aria-label="Category">
+                {% for value, label in categories %}
+                <option value="{{ value }}" {% if value == category %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Search</button>
         </form>
+        <button type="button" id="qb-settings-toggle" class="btn btn-ghost" aria-expanded="false">
+            <span id="qb-status-dot" class="status-dot offline" title="qBittorrent status"></span>
+            qBittorrent
+        </button>
+    </header>
+
+    <div id="qb-settings" class="qb-settings" hidden>
+        <div class="qb-settings-grid">
+            <label>URL <input type="text" id="qb-url" placeholder="http://host:8080"></label>
+            <label>Username <input type="text" id="qb-user" placeholder="username"></label>
+            <label>Password <input type="password" id="qb-pass" placeholder="password"></label>
+            <div class="qb-settings-actions">
+                <button type="button" id="qb-test" class="btn btn-primary">Test connection</button>
+            </div>
+        </div>
+        <p id="qb-status-text" class="qb-status-text"></p>
     </div>
 
-    <div class="container">
-        <p class="results-info">Results for <strong>{{ query }}</strong> — {{ count }} found</p>
+    <main class="container">
+        <div class="results-info">
+            <span>Results for <strong>{{ query }}</strong>{% if category %} in <strong>{{ category }}</strong>{% endif %} — {{ count }} found</span>
+            {% if results %}
+            <span class="select-count"><span id="selected-count">0</span> selected</span>
+            {% endif %}
+        </div>
 
         {% if results %}
-        <form id="selection-form">
-            <table class="results-table">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="select-all" onchange="toggleAll(this.checked)"></th>
-                        <th>Name</th>
-                        <th>Size</th>
-                        <th>Seeders</th>
-                        <th>Leechers</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for t in results %}
-                    <tr>
-                        <td><input type="checkbox" name="selected" value="{{ t.id }}" class="torrent-check"></td>
-                        <td>
-                            <a href="{{ t.url }}" target="_blank">{{ t.name }}</a>
-                            {% if t.magnet %}
-                            <br><small class="magnet-link"><a href="{{ t.magnet }}">magnet</a></small>
-                            {% endif %}
-                        </td>
-                        <td>{{ t.size }}</td>
-                        <td class="{{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
-                        <td>{{ t.leechers }}</td>
-                        <td class="actions">
-                            {% if t.magnet %}
-                            <a href="{{ t.magnet }}" class="btn btn-download" title="Download via magnet">⬇</a>
-                            <a href="javascript:sendToQBittorrent('{{ t.magnet }}')" class="btn btn-utorrent" title="Send to qBittorrent">📡</a>
-                            {% endif %}
-                            <a href="{{ t.url }}" target="_blank" class="btn" title="View details">👁</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <table class="results-table" id="results-table">
+            <thead>
+                <tr>
+                    <th class="col-check"><input type="checkbox" id="select-all" title="Select all"></th>
+                    <th data-sort="name" class="sortable">Name</th>
+                    <th data-sort="size_bytes" class="sortable num">Size</th>
+                    <th data-sort="seeders" class="sortable num">S</th>
+                    <th data-sort="leechers" class="sortable num">L</th>
+                    <th data-sort="uploaded_ts" class="sortable">Uploaded</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in results %}
+                <tr data-name="{{ t.name|lower }}" data-size="{{ t.size_bytes }}" data-seeders="{{ t.seeders }}" data-leechers="{{ t.leechers }}" data-uploaded="{{ t.uploaded_ts }}">
+                    <td class="col-check"><input type="checkbox" class="torrent-check" value="{{ t.id }}"></td>
+                    <td class="col-name">
+                        <a href="{{ t.url }}" target="_blank" rel="noopener">{{ t.name }}</a>
+                        {% if t.category %}<span class="tag">{{ t.category }}</span>{% endif %}
+                    </td>
+                    <td class="num">{{ t.size }}</td>
+                    <td class="num {{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
+                    <td class="num">{{ t.leechers }}</td>
+                    <td class="date-cell">{{ t.uploaded }}</td>
+                    <td class="actions">
+                        {% if t.magnet %}
+                        <button type="button" class="btn btn-qb" data-magnet="{{ t.magnet }}" title="Send to qBittorrent">📡 QB</button>
+                        <a href="{{ t.magnet }}" class="btn btn-download" title="Open magnet">⬇</a>
+                        {% endif %}
+                        <a href="{{ t.url }}" target="_blank" rel="noopener" class="btn btn-ghost" title="View details">👁</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
 
-            <div class="batch-actions">
-                <button type="button" onclick="downloadSelected()" class="btn btn-primary">⬇ Download Selected</button>
-                <button type="button" onclick="sendSelectedToQBittorrent()" class="btn btn-utorrent">📡 Send to qBittorrent</button>
-                <input type="text" id="qbittorrent-url" value="http://desktop.mancave:8080" class="utorrent-input">
-                <input type="text" id="qbittorrent-user" placeholder="Username" class="utorrent-input" style="width:120px;">
-                <input type="password" id="qbittorrent-pass" placeholder="Password" class="utorrent-input" style="width:120px;">
-            </div>
-        </form>
+        <div class="batch-actions">
+            <button type="button" id="send-selected" class="btn btn-qb btn-lg">📡 Send selected to qBittorrent</button>
+            <button type="button" id="download-selected" class="btn btn-primary btn-lg">⬇ Download selected magnets</button>
+        </div>
+        {% elif query %}
+        <div class="empty-state">
+            <p>No results for <strong>{{ query }}</strong>.</p>
+            <p>Try a different search term or category.</p>
+        </div>
         {% endif %}
-    </div>
+    </main>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
 
     <script>
-        function toggleAll(checked) {
-            document.querySelectorAll('.torrent-check').forEach(cb => cb.checked = checked);
+        const QB_DEFAULTS = { url: {{ qb_url|tojson }}, username: {{ qb_username|tojson }} };
+        const $ = sel => document.querySelector(sel);
+        const $$ = sel => document.querySelectorAll(sel);
+
+        /* ---------- qBittorrent settings (persisted in localStorage) ---------- */
+        const qbSettings = $('#qb-settings');
+        const qbUrl = $('#qb-url'), qbUser = $('#qb-user'), qbPass = $('#qb-pass');
+        const statusDot = $('#qb-status-dot'), statusText = $('#qb-status-text');
+
+        function loadSettings() {
+            let saved = {};
+            try { saved = JSON.parse(localStorage.getItem('qb_settings') || '{}'); } catch (e) {}
+            qbUrl.value = saved.url || QB_DEFAULTS.url || '';
+            qbUser.value = saved.username || QB_DEFAULTS.username || '';
+            qbPass.value = saved.password || '';
+        }
+        function saveSettings() {
+            localStorage.setItem('qb_settings', JSON.stringify({
+                url: qbUrl.value.trim(), username: qbUser.value.trim(), password: qbPass.value
+            }));
+        }
+        function qbPayload() {
+            return { url: qbUrl.value.trim(), username: qbUser.value.trim(), password: qbPass.value };
+        }
+        function setStatus(state, text) {
+            statusDot.className = 'status-dot ' + state;
+            statusText.textContent = text || '';
         }
 
-        function downloadSelected() {
-            const magnets = getSelectedMagnets();
-            if (magnets.length === 0) {
-                alert('Select at least one torrent');
-                return;
-            }
-            magnets.forEach(magnet => {
-                const a = document.createElement('a');
-                a.href = magnet;
-                a.click();
-            });
-        }
+        loadSettings();
+        [qbUrl, qbUser, qbPass].forEach(el => el.addEventListener('change', () => { saveSettings(); setStatus('offline', ''); }));
 
-        function getSelectedMagnets() {
-            const magnets = [];
-            document.querySelectorAll('.torrent-check:checked').forEach(cb => {
-                const row = cb.closest('tr');
-                const downloadBtn = row.querySelector('.btn-download');
-                if (downloadBtn) {
-                    magnets.push(downloadBtn.href);
-                }
-            });
-            return magnets;
-        }
+        $('#qb-settings-toggle').addEventListener('click', () => {
+            const open = qbSettings.hidden;
+            qbSettings.hidden = !open;
+            $('#qb-settings-toggle').setAttribute('aria-expanded', String(open));
+        });
 
-        async function sendToQBittorrent(magnet) {
-            const base = document.getElementById('qbittorrent-url').value || 'http://desktop.mancave:8080';
-            const user = document.getElementById('qbittorrent-user').value || 'admin';
-            const pass = document.getElementById('qbittorrent-pass').value || 'weasel';
+        $('#qb-test').addEventListener('click', async () => {
+            saveSettings();
+            setStatus('checking', 'Checking connection…');
             try {
-                const resp = await fetch('/api/qbittorrent/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: base, username: user, password: pass, magnet: magnet })
+                const resp = await fetch('/api/qbittorrent/test', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(qbPayload())
                 });
                 const data = await resp.json();
-                console.log(data.success ? 'Sent' : 'Error:', data.error);
+                if (data.success) {
+                    setStatus('online', `Connected — qBittorrent ${data.version}`);
+                    toast('qBittorrent connection OK', 'success');
+                } else {
+                    setStatus('offline', data.error);
+                    toast('qBittorrent: ' + data.error, 'error');
+                }
             } catch (e) {
-                console.error('Error:', e);
+                setStatus('offline', String(e));
+                toast('qBittorrent unreachable', 'error');
+            }
+        });
+
+        /* ---------- toasts ---------- */
+        function toast(message, kind) {
+            const el = document.createElement('div');
+            el.className = 'toast ' + (kind || '');
+            el.textContent = message;
+            $('#toasts').appendChild(el);
+            setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 400); }, 4000);
+        }
+
+        /* ---------- selection ---------- */
+        function updateCount() {
+            $('#selected-count').textContent = $$('.torrent-check:checked').length;
+        }
+        $('#select-all')?.addEventListener('change', e => {
+            $$('.torrent-check').forEach(cb => cb.checked = e.target.checked);
+            updateCount();
+        });
+        $$('.torrent-check').forEach(cb => cb.addEventListener('change', updateCount));
+
+        function selectedMagnets() {
+            return [...$$('.torrent-check:checked')].map(cb => {
+                const btn = cb.closest('tr').querySelector('.btn-qb');
+                return btn ? btn.dataset.magnet : null;
+            }).filter(Boolean);
+        }
+
+        /* ---------- sending to qBittorrent ---------- */
+        async function sendMagnets(magnets, button) {
+            if (!magnets.length) { toast('Select at least one torrent', 'error'); return; }
+            const original = button ? button.innerHTML : '';
+            if (button) { button.disabled = true; button.innerHTML = '…'; }
+            try {
+                const resp = await fetch('/api/qbittorrent/add', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...qbPayload(), magnets })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    setStatus('online', '');
+                    toast(`Sent ${data.sent} torrent${data.sent > 1 ? 's' : ''} to qBittorrent`, 'success');
+                    if (data.errors?.length) toast('Some failed: ' + data.errors[0], 'error');
+                } else {
+                    setStatus('offline', data.error);
+                    toast('qBittorrent: ' + data.error, 'error');
+                }
+            } catch (e) {
+                toast('qBittorrent unreachable', 'error');
+            } finally {
+                if (button) { button.disabled = false; button.innerHTML = original; }
             }
         }
 
-        async function sendSelectedToQBittorrent() {
-            for (const magnet of getSelectedMagnets()) {
-                await sendToQBittorrent(magnet);
-            }
-        }
+        $$('.btn-qb').forEach(btn =>
+            btn.addEventListener('click', () => sendMagnets([btn.dataset.magnet], btn)));
+
+        $('#send-selected')?.addEventListener('click', e =>
+            sendMagnets(selectedMagnets(), e.currentTarget));
+
+        /* ---------- download selected magnets ---------- */
+        $('#download-selected')?.addEventListener('click', () => {
+            const magnets = [...$$('.torrent-check:checked')]
+                .map(cb => cb.closest('tr').querySelector('.btn-download'))
+                .filter(Boolean).map(a => a.href);
+            if (!magnets.length) { toast('Select at least one torrent', 'error'); return; }
+            magnets.forEach(href => { const a = document.createElement('a'); a.href = href; a.click(); });
+        });
+
+        /* ---------- column sorting ---------- */
+        $$('.sortable').forEach(th => th.addEventListener('click', () => {
+            const key = th.dataset.sort;
+            const dir = th.classList.contains('asc') ? -1 : 1;
+            $$('.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+            th.classList.add(dir === 1 ? 'asc' : 'desc');
+            const tbody = $('#results-table tbody');
+            const rows = [...tbody.rows];
+            rows.sort((a, b) => {
+                const av = a.dataset[key] ?? '', bv = b.dataset[key] ?? '';
+                const an = parseFloat(av), bn = parseFloat(bv);
+                if (!isNaN(an) && !isNaN(bn)) return (an - bn) * dir;
+                return String(av).localeCompare(String(bv)) * dir;
+            });
+            rows.forEach(r => tbody.appendChild(r));
+        }));
     </script>
 </body>
 </html>
