@@ -273,11 +273,12 @@ body {
 .ok { color: var(--warning); }
 .bad { color: var(--danger); }
 
-/* Action buttons */
+/* Action buttons (inside a table cell) */
 .actions {
     display: flex;
     gap: 6px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .btn {

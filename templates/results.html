@@ -38,7 +38,7 @@
 
     <main class="container">
         <div class="results-info">
-            <span>Results for <strong>{{ query }}</strong>{% if category %} in <strong>{{ category }}</strong>{% endif %} — {{ count }} found</span>
+            <span>Results for <strong>{{ query }}</strong>{% if category_name %} in <strong>{{ category_name }}</strong>{% endif %} — {{ count }} found</span>
             {% if results %}
             <span class="select-count"><span id="selected-count">0</span> selected</span>
             {% endif %}
@@ -69,12 +69,14 @@
                     <td class="num {{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
                     <td class="num">{{ t.leechers }}</td>
                     <td class="date-cell">{{ t.uploaded }}</td>
-                    <td class="actions">
-                        {% if t.magnet %}
-                        <button type="button" class="btn btn-qb" data-magnet="{{ t.magnet }}" title="Send to qBittorrent">📡 QB</button>
-                        <a href="{{ t.magnet }}" class="btn btn-download" title="Open magnet">⬇</a>
-                        {% endif %}
-                        <a href="{{ t.url }}" target="_blank" rel="noopener" class="btn btn-ghost" title="View details">👁</a>
+                    <td>
+                        <div class="actions">
+                            {% if t.magnet %}
+                            <button type="button" class="btn btn-qb" data-magnet="{{ t.magnet }}" title="Send to qBittorrent">📡 QB</button>
+                            <a href="{{ t.magnet }}" class="btn btn-download" title="Open magnet">⬇</a>
+                            {% endif %}
+                            <a href="{{ t.url }}" target="_blank" rel="noopener" class="btn btn-ghost" title="View details">👁</a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}

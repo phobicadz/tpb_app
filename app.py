@@ -15,24 +15,46 @@ QB_URL = os.environ.get("QB_URL", "http://desktop.mancave:8080")
 QB_USERNAME = os.environ.get("QB_USERNAME", "admin")
 QB_PASSWORD = os.environ.get("QB_PASSWORD", "weasel")
 
-# Common qBittorrent categories offered in the search filter
+# apibay category filter options (numeric IDs are the only ones the API honors)
 QB_CATEGORIES = [
     ("", "All categories"),
-    ("music", "Music"),
-    ("music/lossless", "Music - Lossless"),
-    ("audio_book", "Audiobooks"),
-    ("movies", "Movies"),
-    ("movies/hd", "Movies - HD"),
-    ("tv", "TV"),
-    ("tv/hd", "TV - HD"),
-    ("games", "Games"),
-    ("games/pc", "Games - PC"),
-    ("software", "Software"),
-    ("software/apps", "Software - Apps"),
-    ("ebook", "Ebooks"),
-    ("books_comics", "Books & Comics"),
-    ("software/multimedia_apps", "Multimedia Apps"),
+    ("100", "Audio"),
+    ("101", "Music"),
+    ("102", "Audiobooks"),
+    ("104", "Lossless Music"),
+    ("200", "Video"),
+    ("201", "Movies"),
+    ("207", "Movies HD"),
+    ("208", "TV HD"),
+    ("300", "Applications"),
+    ("301", "Apps - Windows"),
+    ("302", "Apps - Mac"),
+    ("303", "Apps - Linux"),
+    ("400", "Games"),
+    ("401", "Games - PC"),
+    ("600", "Books"),
+    ("601", "EBooks"),
+    ("602", "Comics"),
 ]
+
+# Human-readable names for category tags; falls back to the top-level group.
+CATEGORY_NAMES = {
+    "101": "Music", "102": "Audiobooks", "104": "Lossless Music", "199": "Other (Audio)",
+    "201": "Movies", "207": "Movies HD", "208": "TV HD", "299": "Other (Video)",
+    "301": "Windows Apps", "302": "Mac Apps", "303": "Linux Apps", "399": "Other Apps",
+    "401": "PC Games", "499": "Other Games",
+    "501": "XXX", "599": "Other",
+    "601": "EBooks", "602": "Comics",
+}
+CATEGORY_GROUPS = {"1": "Audio", "2": "Video", "3": "Applications",
+                   "4": "Games", "5": "Other", "6": "Books"}
+
+
+def category_label(cat_id):
+    cat_id = str(cat_id)
+    if cat_id in CATEGORY_NAMES:
+        return CATEGORY_NAMES[cat_id]
+    return CATEGORY_GROUPS.get(cat_id[:1], cat_id)
 
 
 class QBittorrentClient:
@@ -155,7 +177,7 @@ def search_torrents(title, category="", top_n=40):
         data = resp.json()
         results = []
         for item in data[:top_n]:
-            timestamp = int(item.get("add_time", 0) or 0)
+            timestamp = int(item.get("added", 0) or 0)
             results.append({
                 "id": item["id"],
                 "name": item["name"],
@@ -165,7 +187,7 @@ def search_torrents(title, category="", top_n=40):
                 "leechers": int(item["leechers"]),
                 "uploaded": datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d") if timestamp else "",
                 "uploaded_ts": timestamp,
-                "category": item.get("category", ""),
+                "category": category_label(item.get("category", "")),
                 "info_hash": item.get("info_hash", ""),
                 "url": f"{DETAILS_URL}?id={item['id']}",
                 "download": f"{TORRENT_URL}?id={item['id']}",
@@ -189,6 +211,7 @@ def search():
     top_n = request.args.get("n", 40, type=int)
     results = search_torrents(query, category, top_n) if query else []
     return render_template("results.html", query=query, category=category,
+                          category_name=category_label(category) if category else "",
                           categories=QB_CATEGORIES, results=results, count=len(results),
                           qb_url=QB_URL, qb_username=QB_USERNAME)
 
