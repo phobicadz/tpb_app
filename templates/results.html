@@ -219,7 +219,10 @@
             }
         }
 
-        $$('.btn-qb').forEach(btn =>
+        /* Only per-row buttons carry data-magnet; #send-selected is bound
+           separately below. Matching it here too would double-bind it and
+           leave it stuck showing the "…" placeholder. */
+        $$('.btn-qb[data-magnet]').forEach(btn =>
             btn.addEventListener('click', () => sendMagnets([btn.dataset.magnet], btn)));
 
         $('#send-selected')?.addEventListener('click', e =>
