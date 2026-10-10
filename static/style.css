@@ -202,6 +202,9 @@ body {
 .status-dot.offline { background: var(--danger); }
 .status-dot.checking { background: var(--warning); animation: pulse 1s infinite; }
 
+/* Space the status dot away from the label in the settings toggle */
+#qb-settings-toggle { gap: 8px; }
+
 @keyframes pulse { 50% { opacity: 0.4; } }
 
 /* Results table */
