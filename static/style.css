@@ -209,6 +209,7 @@ body {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0 8px;
+    table-layout: fixed;
 }
 
 .results-table th {
@@ -278,8 +279,11 @@ body {
     display: flex;
     gap: 6px;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
+
+.col-actions { white-space: nowrap; }
+.col-name { overflow-wrap: break-word; }
 
 .btn {
     display: inline-flex;
@@ -385,8 +389,53 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary-light); }
 }
 
 /* Responsive */
-@media (max-width: 720px) {
+/* Tablet: drop secondary columns */
+@media (max-width: 1024px) {
+    .results-table th.col-leech, .results-table td.col-leech,
+    .results-table th.col-date, .results-table td.col-date { display: none; }
+}
+
+/* Phone: stack the toolbar and render rows as cards */
+@media (max-width: 640px) {
     .topbar { flex-direction: column; align-items: stretch; }
-    .results-table th:nth-child(5), .results-table td:nth-child(5),
-    .results-table th:nth-child(6), .results-table td:nth-child(6) { display: none; }
+    .search-form { min-width: 0; flex-wrap: wrap; }
+    .search-form input[type="text"] { flex: 1 1 100%; }
+    .cat-select { flex: 1; }
+    .qb-settings input { min-width: 0; width: 100%; }
+    .qb-settings label { flex: 1 1 100%; }
+    .hero h1 { font-size: 1.8rem; }
+    .search-box { flex-direction: column; }
+
+    .results-table { table-layout: auto; }
+    .results-table thead, .results-table colgroup { display: none; }
+    .results-table tbody { display: block; }
+    .results-table tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    .results-table td {
+        display: inline-block;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0;
+        background: none;
+        text-align: left;
+    }
+    .results-table td.col-check { order: 1; }
+    .results-table td.col-name { order: 2; flex: 1 1 auto; }
+    .results-table td.col-size, .results-table td.col-seed,
+    .results-table td.col-leech, .results-table td.col-date {
+        order: 3;
+        display: inline-block !important;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+    .results-table td.col-actions { order: 4; flex: 1 1 100%; margin-top: 4px; }
+    .toasts { left: 20px; right: 20px; max-width: none; }
 }

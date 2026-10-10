@@ -46,15 +46,24 @@
 
         {% if results %}
         <table class="results-table" id="results-table">
+            <colgroup>
+                <col style="width:36px">
+                <col>
+                <col style="width:92px">
+                <col style="width:48px">
+                <col style="width:48px">
+                <col style="width:100px">
+                <col style="width:180px">
+            </colgroup>
             <thead>
                 <tr>
                     <th class="col-check"><input type="checkbox" id="select-all" title="Select all"></th>
                     <th data-sort="name" class="sortable">Name</th>
-                    <th data-sort="size_bytes" class="sortable num">Size</th>
-                    <th data-sort="seeders" class="sortable num">S</th>
-                    <th data-sort="leechers" class="sortable num">L</th>
-                    <th data-sort="uploaded_ts" class="sortable">Uploaded</th>
-                    <th>Actions</th>
+                    <th data-sort="size_bytes" class="sortable num col-size">Size</th>
+                    <th data-sort="seeders" class="sortable num col-seed">S</th>
+                    <th data-sort="leechers" class="sortable num col-leech">L</th>
+                    <th data-sort="uploaded_ts" class="sortable col-date">Uploaded</th>
+                    <th class="col-actions">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -65,11 +74,11 @@
                         <a href="{{ t.url }}" target="_blank" rel="noopener">{{ t.name }}</a>
                         {% if t.category %}<span class="tag">{{ t.category }}</span>{% endif %}
                     </td>
-                    <td class="num">{{ t.size }}</td>
-                    <td class="num {{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
-                    <td class="num">{{ t.leechers }}</td>
-                    <td class="date-cell">{{ t.uploaded }}</td>
-                    <td>
+                    <td class="num col-size">{{ t.size }}</td>
+                    <td class="num col-seed {{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
+                    <td class="num col-leech">{{ t.leechers }}</td>
+                    <td class="date-cell col-date">{{ t.uploaded }}</td>
+                    <td class="col-actions">
                         <div class="actions">
                             {% if t.magnet %}
                             <button type="button" class="btn btn-qb" data-magnet="{{ t.magnet }}" title="Send to qBittorrent">📡 QB</button>
