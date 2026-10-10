@@ -212,6 +212,15 @@ body {
     table-layout: fixed;
 }
 
+/* Column widths live in CSS (not inline styles) so media queries can
+   reassign them when columns are hidden. */
+.results-table col.col-check { width: 36px; }
+.results-table col.col-size { width: 92px; }
+.results-table col.col-seed { width: 48px; }
+.results-table col.col-leech { width: 48px; }
+.results-table col.col-date { width: 100px; }
+.results-table col.col-actions { width: 180px; }
+
 .results-table th {
     padding: 12px;
     text-align: left;
@@ -391,8 +400,15 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary-light); }
 /* Responsive */
 /* Tablet: drop secondary columns */
 @media (max-width: 1024px) {
+    /* Fixed layout + hidden cells interacts badly with the colgroup in
+       Chrome. Auto layout is safe here because .actions is nowrap, so the
+       actions column can never shrink below the button row. */
+    .results-table { table-layout: auto; }
+    .results-table colgroup { display: none; }
     .results-table th.col-leech, .results-table td.col-leech,
     .results-table th.col-date, .results-table td.col-date { display: none; }
+    .results-table td.col-actions, .results-table th.col-actions { min-width: 170px; }
+    .results-table td.col-name { overflow-wrap: anywhere; }
 }
 
 /* Phone: stack the toolbar and render rows as cards */
@@ -428,7 +444,9 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary-light); }
         text-align: left;
     }
     .results-table td.col-check { order: 1; }
-    .results-table td.col-name { order: 2; flex: 1 1 auto; }
+    /* min-width:0 + anywhere wrapping keeps long unbroken names from
+       forcing the card wider than the viewport */
+    .results-table td.col-name { order: 2; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
     .results-table td.col-size, .results-table td.col-seed,
     .results-table td.col-leech, .results-table td.col-date {
         order: 3;
