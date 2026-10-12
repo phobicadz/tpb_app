@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 from urllib.parse import quote_plus
 from datetime import datetime, timezone
 import os
+import threading
 import requests
 
 app = Flask(__name__)
@@ -68,6 +69,9 @@ class QBittorrentClient:
         self.session = None
         self.csrf_token = None
         self.credentials = None  # (base_url, username, password) currently logged in
+        # Serializes requests on this client so a 403 re-login or session reset
+        # in one request cannot corrupt another request in flight.
+        self._lock = threading.Lock()
 
     def login(self, base_url, username, password):
         """Authenticate and cache the CSRF token. Returns True on success."""
@@ -136,30 +140,46 @@ class QBittorrentClient:
         return None, f"HTTP {resp.status_code}: {resp.text[:200] or 'no response body'}"
 
     def add_torrent(self, base_url, username, password, magnet):
-        resp, error = self._post("/api/v2/torrents/add", base_url, username, password,
-                                 {"urls": magnet})
-        if error:
-            return False, error
-        return True, None
+        with self._lock:
+            resp, error = self._post("/api/v2/torrents/add", base_url, username, password,
+                                     {"urls": magnet})
+            if error:
+                return False, error
+            return True, None
 
     def check_connection(self, base_url, username, password):
         """Login and read the qBittorrent version to confirm the API works."""
-        if not self._ensure_login(base_url, username, password):
-            return False, "login failed"
-        try:
-            resp = self.session.get(f"{base_url}/api/v2/app/version", timeout=10)
-        except requests.RequestException as e:
-            self.session = None
-            self.credentials = None
-            return False, f"connection error: {e}"
-        if resp.status_code != 200:
-            self.session = None
-            self.credentials = None
-            return False, f"HTTP {resp.status_code}"
-        return True, resp.text.strip()
+        with self._lock:
+            if not self._ensure_login(base_url, username, password):
+                return False, "login failed"
+            try:
+                resp = self.session.get(f"{base_url}/api/v2/app/version", timeout=10)
+            except requests.RequestException as e:
+                self.session = None
+                self.credentials = None
+                return False, f"connection error: {e}"
+            if resp.status_code != 200:
+                self.session = None
+                self.credentials = None
+                return False, f"HTTP {resp.status_code}"
+            return True, resp.text.strip()
 
 
-qb_client = QBittorrentClient()
+# One client per credential set, so concurrent requests from different browsers
+# cannot clobber each other's session/CSRF state. Same credentials reuse the
+# same logged-in client (no re-login per request).
+_qb_clients = {}
+_qb_clients_lock = threading.Lock()
+
+
+def get_qb_client(base_url, username, password):
+    key = (base_url, username, password)
+    with _qb_clients_lock:
+        client = _qb_clients.get(key)
+        if client is None:
+            client = QBittorrentClient()
+            _qb_clients[key] = client
+        return client
 
 
 def format_size(size_bytes):
@@ -232,7 +252,7 @@ def qb_test_api():
     base_url = data.get("url") or QB_URL
     username = data.get("username") or QB_USERNAME
     password = data.get("password") or QB_PASSWORD
-    ok, info = qb_client.check_connection(base_url, username, password)
+    ok, info = get_qb_client(base_url, username, password).check_connection(base_url, username, password)
     if not ok:
         return jsonify({"success": False, "error": info}), 502
     return jsonify({"success": True, "version": info})
@@ -251,8 +271,9 @@ def qb_add_api():
 
     errors = []
     sent = 0
+    client = get_qb_client(base_url, username, password)
     for magnet in magnets:
-        ok, error = qb_client.add_torrent(base_url, username, password, magnet)
+        ok, error = client.add_torrent(base_url, username, password, magnet)
         if ok:
             sent += 1
         else:
