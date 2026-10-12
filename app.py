@@ -182,6 +182,26 @@ def get_qb_client(base_url, username, password):
         return client
 
 
+def resolve_qb_target(data):
+    """Resolve url/credentials for a request, preventing credential leaks.
+
+    Server-side default credentials (QB_USERNAME/QB_PASSWORD) are only ever
+    sent to QB_URL. A caller-supplied url requires explicit credentials,
+    otherwise an unauthenticated caller could leak the secrets to any host.
+    Returns (base_url, username, password, error); error is None on success.
+    """
+    url = (data.get("url") or "").strip()
+    username = data.get("username") or ""
+    password = data.get("password") or ""
+    if not username or not password:
+        if url and url != QB_URL:
+            return None, None, None, (
+                "a custom qBittorrent URL requires an explicit username and password"
+            )
+        return QB_URL, QB_USERNAME, QB_PASSWORD, None
+    return url or QB_URL, username, password, None
+
+
 def format_size(size_bytes):
     units = ['B', 'KB', 'MB', 'GB', 'TB']
     size = float(size_bytes)
@@ -249,9 +269,9 @@ def qb_config():
 def qb_test_api():
     """Check that the UI can reach and authenticate with qBittorrent."""
     data = request.get_json(silent=True) or {}
-    base_url = data.get("url") or QB_URL
-    username = data.get("username") or QB_USERNAME
-    password = data.get("password") or QB_PASSWORD
+    base_url, username, password, error = resolve_qb_target(data)
+    if error:
+        return jsonify({"success": False, "error": error}), 400
     ok, info = get_qb_client(base_url, username, password).check_connection(base_url, username, password)
     if not ok:
         return jsonify({"success": False, "error": info}), 502
@@ -262,9 +282,9 @@ def qb_test_api():
 def qb_add_api():
     """Proxy endpoint to add a torrent (or several) to qBittorrent."""
     data = request.get_json(silent=True) or {}
-    base_url = data.get("url") or QB_URL
-    username = data.get("username") or QB_USERNAME
-    password = data.get("password") or QB_PASSWORD
+    base_url, username, password, error = resolve_qb_target(data)
+    if error:
+        return jsonify({"success": False, "error": error}), 400
     magnets = data.get("magnets") or ([data["magnet"]] if data.get("magnet") else [])
     if not magnets:
         return jsonify({"success": False, "error": "no magnet provided"}), 400
