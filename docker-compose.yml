@@ -4,6 +4,10 @@ services:
     container_name: tpb_app
     ports:
       - "5000:5000"
+    environment:
+      - QB_URL=${QB_URL:-http://desktop.mancave:8080}
+      - QB_USERNAME=${QB_USERNAME:-admin}
+      - QB_PASSWORD=${QB_PASSWORD:-weasel}
     networks:
       - newasgard
 
