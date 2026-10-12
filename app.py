@@ -16,6 +16,9 @@ QB_URL = os.environ.get("QB_URL", "http://desktop.mancave:8080")
 QB_USERNAME = os.environ.get("QB_USERNAME", "admin")
 QB_PASSWORD = os.environ.get("QB_PASSWORD", "weasel")
 
+# Upper bound for a single /api/qbittorrent/add batch.
+MAX_MAGNETS = 100
+
 # apibay category filter options (numeric IDs are the only ones the API honors)
 QB_CATEGORIES = [
     ("", "All categories"),
@@ -148,6 +151,27 @@ class QBittorrentClient:
         self.credentials = None
         return None, f"HTTP {resp.status_code}: {resp.text[:200] or 'no response body'}"
 
+    def _get(self, path, base_url, username, password):
+        """GET with the same re-login and retry-once behavior as _post (403 = expired session)."""
+        if not self._ensure_login(base_url, username, password):
+            return None, "login failed"
+        try:
+            resp = self.session.get(f"{base_url}{path}", timeout=10)
+            if resp.status_code == 403:
+                # Cached session expired server-side: re-login once and retry.
+                if not self.login(base_url, username, password):
+                    return None, "login failed"
+                resp = self.session.get(f"{base_url}{path}", timeout=10)
+        except requests.RequestException as e:
+            self.session = None
+            self.credentials = None
+            return None, f"connection error: {e}"
+        if resp.status_code == 200:
+            return resp, None
+        self.session = None
+        self.credentials = None
+        return None, f"HTTP {resp.status_code}"
+
     def add_torrent(self, base_url, username, password, magnet):
         with self._lock:
             resp, error = self._post("/api/v2/torrents/add", base_url, username, password,
@@ -159,18 +183,9 @@ class QBittorrentClient:
     def check_connection(self, base_url, username, password):
         """Login and read the qBittorrent version to confirm the API works."""
         with self._lock:
-            if not self._ensure_login(base_url, username, password):
-                return False, "login failed"
-            try:
-                resp = self.session.get(f"{base_url}/api/v2/app/version", timeout=10)
-            except requests.RequestException as e:
-                self.session = None
-                self.credentials = None
-                return False, f"connection error: {e}"
-            if resp.status_code != 200:
-                self.session = None
-                self.credentials = None
-                return False, f"HTTP {resp.status_code}"
+            resp, error = self._get("/api/v2/app/version", base_url, username, password)
+            if error:
+                return False, error
             return True, resp.text.strip()
 
 
@@ -209,6 +224,31 @@ def resolve_qb_target(data):
             )
         return QB_URL, QB_USERNAME, QB_PASSWORD, None
     return url or QB_URL, username, password, None
+
+
+def validate_magnets(data):
+    """Normalize and validate the magnet payload.
+
+    Accepts either a "magnets" list or a single "magnet" string. Returns
+    (magnets, error); error is None when the list is non-empty, bounded and
+    every entry is a non-empty magnet link.
+    """
+    magnets = data.get("magnets")
+    if magnets is None:
+        single = data.get("magnet")
+        magnets = [single] if single is not None else []
+    if not isinstance(magnets, list):
+        return None, "magnets must be a list of magnet links"
+    if not magnets:
+        return None, "no magnet provided"
+    if len(magnets) > MAX_MAGNETS:
+        return None, f"too many magnets (max {MAX_MAGNETS})"
+    cleaned = []
+    for magnet in magnets:
+        if not isinstance(magnet, str) or not magnet.strip().startswith("magnet:?"):
+            return None, "every entry must be a non-empty magnet:? link"
+        cleaned.append(magnet.strip())
+    return cleaned, None
 
 
 def format_size(size_bytes):
@@ -294,23 +334,29 @@ def qb_add_api():
     base_url, username, password, error = resolve_qb_target(data)
     if error:
         return jsonify({"success": False, "error": error}), 400
-    magnets = data.get("magnets") or ([data["magnet"]] if data.get("magnet") else [])
-    if not magnets:
-        return jsonify({"success": False, "error": "no magnet provided"}), 400
+    magnets, error = validate_magnets(data)
+    if error:
+        return jsonify({"success": False, "error": error}), 400
 
     errors = []
     sent = 0
+    not_sent = 0
     client = get_qb_client(base_url, username, password)
-    for magnet in magnets:
+    for index, magnet in enumerate(magnets):
         ok, error = client.add_torrent(base_url, username, password, magnet)
         if ok:
             sent += 1
-        else:
-            errors.append(error)
+            continue
+        errors.append(error)
+        if "login failed" in error or "connection error" in error:
+            # Same URL/credentials for the whole batch: later items would each
+            # repeat the same failing (or timing-out) login, so stop here.
+            not_sent = len(magnets) - index - 1
+            break
     if sent == 0:
         status = 502 if any("connection error" in e or "login failed" in e for e in errors) else 500
-        return jsonify({"success": False, "error": errors[0]}), status
-    return jsonify({"success": True, "sent": sent, "errors": errors})
+        return jsonify({"success": False, "error": errors[0], "sent": 0, "not_sent": not_sent}), status
+    return jsonify({"success": True, "sent": sent, "errors": errors, "not_sent": not_sent})
 
 
 @app.route("/api/search")
