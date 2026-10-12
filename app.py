@@ -33,7 +33,9 @@ QB_CATEGORIES = [
     ("303", "Apps - Linux"),
     ("400", "Games"),
     ("401", "Games - PC"),
-    ("600", "Books"),
+    # apibay has no top-level "Books": books live under 600 "Other" as 601/602,
+    # alongside non-book subcategories (603 pictures, 604 covers, 605 physibles).
+    ("600", "Other"),
     ("601", "EBooks"),
     ("602", "Comics"),
 ]
@@ -44,11 +46,12 @@ CATEGORY_NAMES = {
     "201": "Movies", "207": "Movies HD", "208": "TV HD", "299": "Other (Video)",
     "301": "Windows Apps", "302": "Mac Apps", "303": "Linux Apps", "399": "Other Apps",
     "401": "PC Games", "499": "Other Games",
-    "501": "XXX", "599": "Other",
-    "601": "EBooks", "602": "Comics",
+    "501": "XXX", "599": "Other (XXX)",
+    "601": "EBooks", "602": "Comics", "603": "Pictures", "604": "Covers",
+    "605": "Physibles", "699": "Other",
 }
 CATEGORY_GROUPS = {"1": "Audio", "2": "Video", "3": "Applications",
-                   "4": "Games", "5": "Other", "6": "Books"}
+                   "4": "Games", "5": "XXX", "6": "Other"}
 
 
 def category_label(cat_id):
