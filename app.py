@@ -64,8 +64,13 @@ def category_label(cat_id):
 class QBittorrentClient:
     """qBittorrent Web API client with cookie session and CSRF token handling.
 
-    qBittorrent >= 4.6 requires an X-CSRFTOKEN header on POST requests, and
-    /api/v2/torrents/add returns HTTP 200 with an empty body on success.
+    Upstream qBittorrent (4.6.x through 5.x) has no authInfo endpoint
+    (AuthController only exposes login/logout) and validates CSRF via
+    Origin/Referer headers rather than X-CSRFTOKEN; requests without those
+    headers are accepted. Some forks/proxies expose /api/v2/auth/authInfo and
+    require an X-CSRFTOKEN header on POSTs, so we probe it and fall back to
+    the sid cookie value as the token. /api/v2/torrents/add returns HTTP 200
+    with an empty body on success.
     """
 
     def __init__(self):
@@ -93,8 +98,9 @@ class QBittorrentClient:
         if resp.status_code != 200 or body not in ("", "Ok."):
             return False
 
-        # qBittorrent >= 4.6 exposes the CSRF token via authInfo; older
-        # versions use the sid cookie value as the token.
+        # Not an upstream endpoint (upstream ignores X-CSRFTOKEN entirely);
+        # kept for forks/proxies that expose authInfo. Upstream and older
+        # servers 404 here, so fall back to the sid cookie value as the token.
         csrf_token = None
         try:
             info = session.get(f"{base_url}/api/v2/auth/authInfo", timeout=10)
