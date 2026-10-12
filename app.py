@@ -80,7 +80,10 @@ class QBittorrentClient:
             )
         except requests.RequestException:
             return False
-        if resp.status_code != 200 or resp.text.strip() != "Ok.":
+        # qBittorrent 4.6.x replies "Ok." (and "Fails." for bad credentials);
+        # 5.x replies 200 with an empty body on success.
+        body = resp.text.strip()
+        if resp.status_code != 200 or body not in ("", "Ok."):
             return False
 
         # qBittorrent >= 4.6 exposes the CSRF token via authInfo; older
