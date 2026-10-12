@@ -28,7 +28,7 @@
         <div class="qb-settings-grid">
             <label>URL <input type="text" id="qb-url" placeholder="http://host:8080"></label>
             <label>Username <input type="text" id="qb-user" placeholder="username"></label>
-            <label>Password <input type="password" id="qb-pass" placeholder="password"></label>
+            <label>Password <input type="password" id="qb-pass" placeholder="unchanged"></label>
             <div class="qb-settings-actions">
                 <button type="button" id="qb-test" class="btn btn-primary">Test connection</button>
             </div>
@@ -58,11 +58,11 @@
             <thead>
                 <tr>
                     <th class="col-check"><input type="checkbox" id="select-all" title="Select all"></th>
-                    <th data-sort="name" class="sortable">Name</th>
-                    <th data-sort="size_bytes" class="sortable num col-size">Size</th>
-                    <th data-sort="seeders" class="sortable num col-seed">S</th>
-                    <th data-sort="leechers" class="sortable num col-leech">L</th>
-                    <th data-sort="uploaded_ts" class="sortable col-date">Uploaded</th>
+                    <th data-sort="name" class="sortable" aria-sort="none"><button type="button" class="sort-btn">Name</button></th>
+                    <th data-sort="size_bytes" class="sortable num col-size" aria-sort="none"><button type="button" class="sort-btn">Size</button></th>
+                    <th data-sort="seeders" class="sortable num col-seed" aria-sort="none"><button type="button" class="sort-btn">S</button></th>
+                    <th data-sort="leechers" class="sortable num col-leech" aria-sort="none"><button type="button" class="sort-btn">L</button></th>
+                    <th data-sort="uploaded_ts" class="sortable col-date" aria-sort="none"><button type="button" class="sort-btn">Uploaded</button></th>
                     <th class="col-actions">Actions</th>
                 </tr>
             </thead>
@@ -74,10 +74,10 @@
                         <a href="{{ t.url }}" target="_blank" rel="noopener">{{ t.name }}</a>
                         {% if t.category %}<span class="tag">{{ t.category }}</span>{% endif %}
                     </td>
-                    <td class="num col-size">{{ t.size }}</td>
-                    <td class="num col-seed {{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}">{{ t.seeders }}</td>
-                    <td class="num col-leech">{{ t.leechers }}</td>
-                    <td class="date-cell col-date">{{ t.uploaded }}</td>
+                    <td class="num col-size"><span class="cell-label">Size:</span> {{ t.size }}</td>
+                    <td class="num col-seed {{ 'good' if t.seeders > 50 else ('ok' if t.seeders > 10 else 'bad') }}"><span class="cell-label">Seeders:</span> {{ t.seeders }}</td>
+                    <td class="num col-leech"><span class="cell-label">Leechers:</span> {{ t.leechers }}</td>
+                    <td class="date-cell col-date"><span class="cell-label">Uploaded:</span> {{ t.uploaded }}</td>
                     <td class="col-actions">
                         <div class="actions">
                             {% if t.magnet %}
@@ -111,7 +111,10 @@
         const $ = sel => document.querySelector(sel);
         const $$ = sel => document.querySelectorAll(sel);
 
-        /* ---------- qBittorrent settings (persisted in localStorage) ---------- */
+        /* ---------- qBittorrent settings ----------
+           Only the non-secret URL/username are persisted in localStorage.
+           The password stays in memory for this page session; when it is
+           left blank the server falls back to its configured credential. */
         const qbSettings = $('#qb-settings');
         const qbUrl = $('#qb-url'), qbUser = $('#qb-user'), qbPass = $('#qb-pass');
         const statusDot = $('#qb-status-dot'), statusText = $('#qb-status-text');
@@ -121,11 +124,15 @@
             try { saved = JSON.parse(localStorage.getItem('qb_settings') || '{}'); } catch (e) {}
             qbUrl.value = saved.url || QB_DEFAULTS.url || '';
             qbUser.value = saved.username || QB_DEFAULTS.username || '';
-            qbPass.value = saved.password || '';
+            qbPass.value = '';  // never persisted; re-enter per session or rely on server credential
+            if (saved.password) {  // purge any password stored by older versions
+                delete saved.password;
+                localStorage.setItem('qb_settings', JSON.stringify(saved));
+            }
         }
         function saveSettings() {
             localStorage.setItem('qb_settings', JSON.stringify({
-                url: qbUrl.value.trim(), username: qbUser.value.trim(), password: qbPass.value
+                url: qbUrl.value.trim(), username: qbUser.value.trim()
             }));
         }
         function qbPayload() {
@@ -237,22 +244,38 @@
             magnets.forEach(href => { const a = document.createElement('a'); a.href = href; a.click(); });
         });
 
-        /* ---------- column sorting ---------- */
-        $$('.sortable').forEach(th => th.addEventListener('click', () => {
+        /* ---------- column sorting ----------
+           Sorting is triggered by real <button>s inside each sortable <th>,
+           so keyboard users can Tab to a header and press Enter/Space.
+           aria-sort reflects the active direction on the header cells. */
+        const NUMERIC_SORT_KEYS = new Set(['size_bytes', 'seeders', 'leechers', 'uploaded_ts']);
+
+        function sortRows(th) {
             const key = th.dataset.sort;
             const dir = th.classList.contains('asc') ? -1 : 1;
-            $$('.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+            $$('.sortable').forEach(h => {
+                h.classList.remove('asc', 'desc');
+                h.setAttribute('aria-sort', 'none');
+            });
             th.classList.add(dir === 1 ? 'asc' : 'desc');
+            th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
             const tbody = $('#results-table tbody');
             const rows = [...tbody.rows];
             rows.sort((a, b) => {
                 const av = a.dataset[key] ?? '', bv = b.dataset[key] ?? '';
-                const an = parseFloat(av), bn = parseFloat(bv);
-                if (!isNaN(an) && !isNaN(bn)) return (an - bn) * dir;
+                if (NUMERIC_SORT_KEYS.has(key)) {
+                    const an = parseFloat(av), bn = parseFloat(bv);
+                    if (!isNaN(an) && !isNaN(bn)) return (an - bn) * dir;
+                }
+                // Name (and any non-numeric key) always sorts as text.
                 return String(av).localeCompare(String(bv)) * dir;
             });
             rows.forEach(r => tbody.appendChild(r));
-        }));
+        }
+
+        $$('.sortable').forEach(th => {
+            th.querySelector('.sort-btn').addEventListener('click', () => sortRows(th));
+        });
     </script>
 </body>
 </html>

@@ -239,6 +239,23 @@ body {
 .results-table th.asc::after { content: " ▲"; color: var(--accent); }
 .results-table th.desc::after { content: " ▼"; color: var(--accent); }
 
+/* Sort controls are real buttons (keyboard-accessible) but must look like
+   plain header text. */
+.results-table th.sortable .sort-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+}
+
+/* Card-mode labels for metadata cells; hidden while the table headers are
+   visible, exposed to assistive tech in card mode (see phone media query). */
+.results-table .cell-label { display: none; }
+
 .results-table tr {
     background: var(--surface);
     transition: background 0.2s;
@@ -426,7 +443,38 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary-light); }
     .search-box { flex-direction: column; }
 
     .results-table { table-layout: auto; }
-    .results-table thead, .results-table colgroup { display: none; }
+    .results-table colgroup { display: none; }
+    /* Keep the header row in the accessibility tree (visually hidden via
+       the sr-only pattern on each th, not display:none) so column
+       associations survive card mode. Re-expose the headers for columns
+       that card mode shows again. */
+    .results-table th.col-leech, .results-table th.col-date { display: table-cell; }
+    .results-table thead { position: absolute; }
+    .results-table thead th {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+    /* Explicit labels for card metadata, hidden visually but read by
+       assistive tech. */
+    .results-table .cell-label {
+        display: inline;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+    }
     .results-table tbody { display: block; }
     .results-table tr {
         display: flex;
